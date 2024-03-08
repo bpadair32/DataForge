@@ -1,0 +1,56 @@
+h1 {
+  color: #35c99b;
+}
+
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: #cb4e3b;
+}
+
+h2 a {
+  text-decoration: none;
+  color: #cb4e3b;
+}
+
+small {
+  font-size: 0.5em
+}
+
+body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background-color: #0b120c;
+    color: #dccce8;
+}
+
+header {
+    padding: 10px 0;
+    text-align: center;
+}
+
+nav ul {
+    list-style: none;
+    display: flex;
+    justify-content: center;
+}
+
+nav li {
+    margin: 0 10px;
+}
+
+main {
+    flex: 1; /* Allow main section to grow and fill available space */
+    width: 80%;
+    margin: 20px auto;
+}
+
+footer {
+    background-color: #f0f0f0;
+    padding: 10px;
+    text-align: center;
+}

@@ -1,5 +1,6 @@
 #! /usr/bin/env python3
 import os
+import shutil
 from datetime import datetime
 from jinja2 import Environment, PackageLoader
 from markdown2 import markdown
@@ -50,7 +51,9 @@ for post in POSTS:
         "date": post_metadata["date"],
     }
 
-    post_html = post_template.render(post=post_data)
+    post_html = post_template.render(
+        post=post_data, pages=pages_metadata, ss_path="../styles/main.css"
+    )
 
     post_file_path = "dist/posts/{slug}.html".format(slug=post_metadata["slug"])
 
@@ -65,8 +68,12 @@ for page in PAGES:
 
     page_html = page_template.render(page=page_data, pages=pages_metadata)
 
-    page_file_path = "dist/pages/{slug}.html".format(slug=page_metadata["slug"])
+    page_file_path = "dist/{slug}.html".format(slug=page_metadata["slug"])
 
     os.makedirs(os.path.dirname(page_file_path), exist_ok=True)
     with open(page_file_path, "w") as file:
         file.write(page_html)
+
+
+os.makedirs("dist/styles", exist_ok=True)
+shutil.copyfile("styles.css", "dist/styles/main.css")

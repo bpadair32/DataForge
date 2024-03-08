@@ -1,14 +1,12 @@
 {% extends "layout.html" %} {% block content %}
-
 <h1>Recent Posts</h1>
-
-<main>
-  {% for post in posts %}
-  <h2>
-    <a href="posts/{{ post.slug }}.html">{{ post.title }}</a
-    ><small>{{ post.date }}</small>
-  </h2>
-  {{ post.summary }} {% endfor %}
+{% for post in posts %}
+<h2>
+  <a href="posts/{{ post.slug }}.html">{{ post.title }}</a></h2>
+  <span class="post-date"><small>{{ post.date }}</small></span>
+<br>
+{{ post.summary }} 
+{% endfor %}
 </main>
 
 {% endblock %}
