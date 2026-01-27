@@ -8,6 +8,22 @@ from jinja2 import Environment, PackageLoader
 from markdown import Markdown
 from pygments.formatters import HtmlFormatter
 
+# Optional Ollama integration for auto-generating summaries
+# Set these environment variables to enable:
+#   OLLAMA_HOST - Ollama server URL (e.g., http://localhost:11434)
+#   OLLAMA_MODEL - Model to use (e.g., llama3.2, mistral)
+OLLAMA_HOST = os.environ.get("OLLAMA_HOST")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL")
+
+ollama_client = None
+if OLLAMA_HOST and OLLAMA_MODEL:
+    try:
+        from ollama import Client
+        ollama_client = Client(host=OLLAMA_HOST)
+    except ImportError:
+        print("Warning: ollama package not installed. Auto-summary generation disabled.")
+        print("Install with: pip install ollama")
+
 
 def convert_obsidian_callouts(text):
     """Convert Obsidian-style callouts to HTML with markdown content.
@@ -112,13 +128,92 @@ def get_metadata_value(meta, key):
     return value
 
 
-# Parse posts
+def generate_summary(content, title):
+    """Generate a 50-60 word summary for a post using Ollama."""
+    if not ollama_client:
+        return None
+
+    prompt = f"""Write a summary for the following blog post titled "{title}".
+The summary must be exactly 50-60 words. Do not include any preamble or explanation,
+just output the summary text directly. The summary should be engaging and give readers
+a clear idea of what the post covers.
+
+Post content:
+{content}
+
+Summary:"""
+
+    response = ollama_client.chat(
+        model=OLLAMA_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return response["message"]["content"].strip()
+
+
+def update_post_with_summary(file_path, summary):
+    """Update a markdown post file to include the generated summary."""
+    with open(file_path, "r") as file:
+        content = file.read()
+
+    # Find the frontmatter section (between --- markers)
+    frontmatter_match = re.match(r"^---\n(.*?)\n---\n", content, re.DOTALL)
+    if not frontmatter_match:
+        return
+
+    frontmatter = frontmatter_match.group(1)
+    rest_of_content = content[frontmatter_match.end():]
+
+    # Check if summary already exists in frontmatter
+    if re.search(r"^summary:", frontmatter, re.MULTILINE):
+        return
+
+    # Add summary before slug line, or at the end of frontmatter
+    if re.search(r"^slug:", frontmatter, re.MULTILINE):
+        new_frontmatter = re.sub(
+            r"^(slug:)", f"summary: {summary}\n\\1", frontmatter, flags=re.MULTILINE
+        )
+    else:
+        new_frontmatter = frontmatter + f"\nsummary: {summary}"
+
+    new_content = f"---\n{new_frontmatter}\n---\n{rest_of_content}"
+
+    with open(file_path, "w") as file:
+        file.write(new_content)
+
+
+def extract_post_content(file_path):
+    """Extract the content of a post (without frontmatter) for summary generation."""
+    with open(file_path, "r") as file:
+        content = file.read()
+
+    # Remove frontmatter
+    content_match = re.match(r"^---\n.*?\n---\n(.*)$", content, re.DOTALL)
+    if content_match:
+        return content_match.group(1).strip()
+    return content.strip()
+
+
+# Parse posts and generate summaries if missing
 POSTS = {}
 for post in os.listdir("posts"):
     file_path = os.path.join("posts", post)
     with open(file_path, "r") as file:
         html, meta = parse_markdown(file.read())
-        POSTS[post] = {"html": html, "metadata": meta}
+
+    # Check if summary is missing and generate one if Ollama is configured
+    summary = get_metadata_value(meta, "summary")
+    if not summary and ollama_client:
+        title = get_metadata_value(meta, "title")
+        post_content = extract_post_content(file_path)
+        print(f"Generating summary for: {title}")
+        summary = generate_summary(post_content, title)
+        if summary:
+            update_post_with_summary(file_path, summary)
+            # Re-parse the file to get updated metadata
+            with open(file_path, "r") as file:
+                html, meta = parse_markdown(file.read())
+
+    POSTS[post] = {"html": html, "metadata": meta}
 
 POSTS = {
     post: POSTS[post]
