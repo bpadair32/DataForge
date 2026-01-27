@@ -84,3 +84,87 @@ a:visited {
 a:hover {
   color: #cb4e3b;
 }
+
+/* Code blocks */
+pre {
+  background-color: #1e1e1e;
+  border-radius: 6px;
+  padding: 1em;
+  overflow-x: auto;
+}
+
+code {
+  font-family: "Fira Code", "Consolas", monospace;
+  font-size: 0.9em;
+}
+
+p code {
+  background-color: #1e1e1e;
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+}
+
+/* Callouts/Admonitions */
+.callout {
+  border-left: 4px solid #35c99b;
+  background-color: #1a2a1e;
+  border-radius: 4px;
+  padding: 0.5em 1em;
+  margin: 1em 0;
+}
+
+.callout-title {
+  font-weight: bold;
+  margin-bottom: 0.5em;
+  color: #35c99b;
+}
+
+.callout-content p:first-child {
+  margin-top: 0;
+}
+
+.callout-content p:last-child {
+  margin-bottom: 0;
+}
+
+/* Callout types */
+.callout-note {
+  border-left-color: #35c99b;
+  background-color: #1a2a1e;
+}
+.callout-note .callout-title {
+  color: #35c99b;
+}
+
+.callout-warning {
+  border-left-color: #f0ad4e;
+  background-color: #2a2510;
+}
+.callout-warning .callout-title {
+  color: #f0ad4e;
+}
+
+.callout-danger, .callout-error {
+  border-left-color: #cb4e3b;
+  background-color: #2a1a18;
+}
+.callout-danger .callout-title,
+.callout-error .callout-title {
+  color: #cb4e3b;
+}
+
+.callout-info {
+  border-left-color: #5bc0de;
+  background-color: #1a252a;
+}
+.callout-info .callout-title {
+  color: #5bc0de;
+}
+
+.callout-tip {
+  border-left-color: #9b59b6;
+  background-color: #251a2a;
+}
+.callout-tip .callout-title {
+  color: #9b59b6;
+}
