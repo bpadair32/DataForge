@@ -168,3 +168,42 @@ p code {
 .callout-tip .callout-title {
   color: #9b59b6;
 }
+
+/* Share buttons */
+.share-buttons {
+  margin-top: 2em;
+  padding-top: 1em;
+  border-top: 1px solid #1e1e1e;
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+}
+
+.share-label {
+  color: #dccce8;
+  font-size: 0.9em;
+}
+
+.share-button {
+  display: inline-block;
+  padding: 0.4em 1em;
+  border-radius: 999px;
+  font-size: 0.85em;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background-color 0.2s;
+}
+
+.share-linkedin {
+  background-color: #0a66c2;
+  color: #ffffff;
+}
+
+.share-linkedin:visited {
+  color: #ffffff;
+}
+
+.share-linkedin:hover {
+  background-color: #004182;
+  color: #ffffff;
+}

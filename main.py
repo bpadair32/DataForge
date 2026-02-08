@@ -1,4 +1,5 @@
 #! /usr/bin/env python3
+import json
 import os
 import re
 import shutil
@@ -17,6 +18,14 @@ SITE_URL = os.environ.get("SITE_URL", "https://adair.tech")
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL")
 
+# Optional LinkedIn integration for auto-posting new blog posts
+# Set these environment variables to enable:
+#   LINKEDIN_ACCESS_TOKEN - OAuth2 access token (use linkedin_auth.py to obtain)
+#   LINKEDIN_PERSON_URN - Your LinkedIn person URN (e.g., urn:li:person:abc123)
+LINKEDIN_ACCESS_TOKEN = os.environ.get("LINKEDIN_ACCESS_TOKEN")
+LINKEDIN_PERSON_URN = os.environ.get("LINKEDIN_PERSON_URN")
+LINKEDIN_SHARE_FILE = os.environ.get("LINKEDIN_SHARE_FILE", ".linkedin_shared.json")
+
 ollama_client = None
 if OLLAMA_HOST and OLLAMA_MODEL:
     try:
@@ -25,6 +34,15 @@ if OLLAMA_HOST and OLLAMA_MODEL:
     except ImportError:
         print("Warning: ollama package not installed. Auto-summary generation disabled.")
         print("Install with: pip install ollama")
+
+linkedin_client = None
+if LINKEDIN_ACCESS_TOKEN and LINKEDIN_PERSON_URN:
+    try:
+        from linkedin_api.clients.restli.client import RestliClient
+        linkedin_client = RestliClient()
+    except ImportError:
+        print("Warning: linkedin-api-python-client not installed. Auto-posting disabled.")
+        print("Install with: pip install linkedin-api-python-client")
 
 
 def convert_obsidian_callouts(text):
@@ -195,6 +213,81 @@ def extract_post_content(file_path):
     return content.strip()
 
 
+def load_shared_posts():
+    """Load the set of post slugs that have already been shared to LinkedIn."""
+    try:
+        with open(LINKEDIN_SHARE_FILE, "r") as f:
+            return set(json.load(f))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return set()
+
+
+def save_shared_posts(shared):
+    """Save the set of shared post slugs to the tracking file."""
+    with open(LINKEDIN_SHARE_FILE, "w") as f:
+        json.dump(sorted(shared), f, indent=2)
+
+
+def share_post_to_linkedin(title, summary, slug, site_url):
+    """Share a single post to LinkedIn as an article via the UGC API."""
+    post_url = f"{site_url}/posts/{slug}.html"
+    try:
+        linkedin_client.create(
+            resource_path="/ugcPosts",
+            entity={
+                "author": LINKEDIN_PERSON_URN,
+                "lifecycleState": "PUBLISHED",
+                "specificContent": {
+                    "com.linkedin.ugc.ShareContent": {
+                        "shareCommentary": {"text": f"{title}\n\n{summary}"},
+                        "shareMediaCategory": "ARTICLE",
+                        "media": [{
+                            "status": "READY",
+                            "originalUrl": post_url,
+                            "title": {"text": title},
+                            "description": {"text": summary},
+                        }],
+                    }
+                },
+                "visibility": {
+                    "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
+                },
+            },
+            access_token=LINKEDIN_ACCESS_TOKEN,
+        )
+        print(f"  Shared to LinkedIn: {title}")
+        return True
+    except Exception as e:
+        print(f"  Warning: Failed to share to LinkedIn: {e}")
+        if "401" in str(e):
+            print("  Hint: Your LinkedIn access token may have expired. Run linkedin_auth.py to re-authorize.")
+        return False
+
+
+def share_new_posts_to_linkedin(posts, site_url):
+    """Share any new posts marked with 'linkedin: true' to LinkedIn."""
+    if not linkedin_client:
+        return
+
+    shared = load_shared_posts()
+    for post in posts.values():
+        meta = post["metadata"]
+        linkedin_flag = get_metadata_value(meta, "linkedin")
+        if linkedin_flag.lower() != "true":
+            continue
+
+        slug = get_metadata_value(meta, "slug")
+        if slug in shared:
+            continue
+
+        title = get_metadata_value(meta, "title")
+        summary = get_metadata_value(meta, "summary")
+        if share_post_to_linkedin(title, summary, slug, site_url):
+            shared.add(slug)
+
+    save_shared_posts(shared)
+
+
 # Parse posts and generate summaries if missing
 POSTS = {}
 for post in os.listdir("posts"):
@@ -305,6 +398,7 @@ for post in POSTS:
         "content": POSTS[post]["html"],
         "title": get_metadata_value(meta, "title"),
         "date": get_metadata_value(meta, "date"),
+        "slug": get_metadata_value(meta, "slug"),
     }
 
     post_html = post_template.render(
@@ -315,6 +409,9 @@ for post in POSTS:
     os.makedirs(os.path.dirname(post_file_path), exist_ok=True)
     with open(post_file_path, "w") as file:
         file.write(post_html)
+
+# Share new posts to LinkedIn (if configured)
+share_new_posts_to_linkedin(POSTS, SITE_URL)
 
 # Generate static pages
 for page in PAGES:

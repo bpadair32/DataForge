@@ -5,4 +5,14 @@
   <small>{{ post.date }}</small>
   {{ post.content }}
 </p>
+<div class="share-buttons">
+  <span class="share-label">Share this post:</span>
+  <a href="https://www.linkedin.com/sharing/share-offsite/?url={{ site_url }}/posts/{{ post.slug }}.html"
+     target="_blank"
+     rel="noopener noreferrer"
+     class="share-button share-linkedin"
+     aria-label="Share on LinkedIn">
+    LinkedIn
+  </a>
+</div>
 {% endblock %}
