@@ -207,3 +207,17 @@ p code {
   background-color: #004182;
   color: #ffffff;
 }
+
+.share-hackernews {
+  background-color: #ff6600;
+  color: #ffffff;
+}
+
+.share-hackernews:visited {
+  color: #ffffff;
+}
+
+.share-hackernews:hover {
+  background-color: #cc5200;
+  color: #ffffff;
+}
