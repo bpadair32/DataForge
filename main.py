@@ -2,8 +2,9 @@
 import os
 import re
 import shutil
-from datetime import datetime
+from datetime import datetime, timezone
 
+from feedgen.feed import FeedGenerator
 from jinja2 import Environment, PackageLoader
 from markdown import Markdown
 from pygments.formatters import HtmlFormatter
@@ -12,6 +13,7 @@ from pygments.formatters import HtmlFormatter
 # Set these environment variables to enable:
 #   OLLAMA_HOST - Ollama server URL (e.g., http://localhost:11434)
 #   OLLAMA_MODEL - Model to use (e.g., llama3.2, mistral)
+SITE_URL = os.environ.get("SITE_URL", "https://adair.tech")
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL")
 
@@ -258,12 +260,40 @@ def extract_metadata(items):
     return result
 
 
+def generate_rss_feed(posts, site_url):
+    """Generate an RSS 2.0 feed from parsed posts."""
+    fg = FeedGenerator()
+    fg.title("adair.tech")
+    fg.link(href=site_url)
+    fg.link(href=f"{site_url}/feed.xml", rel="self")
+    fg.description("Posts from adair.tech")
+    fg.language("en")
+
+    for post in posts.values():
+        meta = post["metadata"]
+        slug = get_metadata_value(meta, "slug")
+        post_url = f"{site_url}/posts/{slug}.html"
+
+        fe = fg.add_entry()
+        fe.id(post_url)
+        fe.title(get_metadata_value(meta, "title"))
+        fe.link(href=post_url)
+        fe.description(get_metadata_value(meta, "summary"))
+        fe.content(post["html"], type="html")
+
+        date_str = get_metadata_value(meta, "date")
+        published = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        fe.published(published)
+
+    fg.rss_file("dist/feed.xml")
+
+
 posts_metadata = extract_metadata(POSTS)
 pages_metadata = extract_metadata(PAGES)
 tags = [post["tags"] for post in posts_metadata]
 
 # Generate home page
-home_html = home_template.render(posts=posts_metadata, pages=pages_metadata, tags=tags)
+home_html = home_template.render(posts=posts_metadata, pages=pages_metadata, tags=tags, site_url=SITE_URL)
 os.makedirs("dist", exist_ok=True)
 with open("dist/index.html", "w") as file:
     file.write(home_html)
@@ -278,7 +308,7 @@ for post in POSTS:
     }
 
     post_html = post_template.render(
-        post=post_data, pages=pages_metadata, ss_path="../styles/main.css"
+        post=post_data, pages=pages_metadata, ss_path="../styles/main.css", site_url=SITE_URL
     )
 
     post_file_path = f"dist/posts/{get_metadata_value(meta, 'slug')}.html"
@@ -294,12 +324,15 @@ for page in PAGES:
         "title": get_metadata_value(meta, "title"),
     }
 
-    page_html = page_template.render(page=page_data, pages=pages_metadata)
+    page_html = page_template.render(page=page_data, pages=pages_metadata, site_url=SITE_URL)
 
     page_file_path = f"dist/{get_metadata_value(meta, 'slug')}.html"
     os.makedirs(os.path.dirname(page_file_path), exist_ok=True)
     with open(page_file_path, "w") as file:
         file.write(page_html)
+
+# Generate RSS feed
+generate_rss_feed(POSTS, SITE_URL)
 
 # Copy styles and generate Pygments CSS
 os.makedirs("dist/styles", exist_ok=True)
