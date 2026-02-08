@@ -26,6 +26,14 @@ LINKEDIN_ACCESS_TOKEN = os.environ.get("LINKEDIN_ACCESS_TOKEN")
 LINKEDIN_PERSON_URN = os.environ.get("LINKEDIN_PERSON_URN")
 LINKEDIN_SHARE_FILE = os.environ.get("LINKEDIN_SHARE_FILE", ".linkedin_shared.json")
 
+# Optional Bluesky integration for auto-posting new blog posts
+# Set these environment variables to enable:
+#   BLUESKY_HANDLE - Your Bluesky handle (e.g., user.bsky.social)
+#   BLUESKY_APP_PASSWORD - App password (generate at Settings > App Passwords)
+BLUESKY_HANDLE = os.environ.get("BLUESKY_HANDLE")
+BLUESKY_APP_PASSWORD = os.environ.get("BLUESKY_APP_PASSWORD")
+BLUESKY_SHARE_FILE = os.environ.get("BLUESKY_SHARE_FILE", ".bluesky_shared.json")
+
 ollama_client = None
 if OLLAMA_HOST and OLLAMA_MODEL:
     try:
@@ -43,6 +51,22 @@ if LINKEDIN_ACCESS_TOKEN and LINKEDIN_PERSON_URN:
     except ImportError:
         print("Warning: linkedin-api-python-client not installed. Auto-posting disabled.")
         print("Install with: pip install linkedin-api-python-client")
+
+bluesky_client = None
+bsky_models = None
+if BLUESKY_HANDLE and BLUESKY_APP_PASSWORD:
+    try:
+        from atproto import Client as BlueskyClient, models as _bsky_models
+        bsky_models = _bsky_models
+        _bsky = BlueskyClient()
+        _bsky.login(BLUESKY_HANDLE, BLUESKY_APP_PASSWORD)
+        bluesky_client = _bsky
+    except ImportError:
+        print("Warning: atproto package not installed. Bluesky auto-posting disabled.")
+        print("Install with: pip install atproto")
+    except Exception as e:
+        print(f"Warning: Failed to log in to Bluesky: {e}")
+        print("Check your BLUESKY_HANDLE and BLUESKY_APP_PASSWORD environment variables.")
 
 
 def convert_obsidian_callouts(text):
@@ -288,6 +312,64 @@ def share_new_posts_to_linkedin(posts, site_url):
     save_shared_posts(shared)
 
 
+def load_bluesky_shared_posts():
+    """Load the set of post slugs that have already been shared to Bluesky."""
+    try:
+        with open(BLUESKY_SHARE_FILE, "r") as f:
+            return set(json.load(f))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return set()
+
+
+def save_bluesky_shared_posts(shared):
+    """Save the set of shared post slugs to the Bluesky tracking file."""
+    with open(BLUESKY_SHARE_FILE, "w") as f:
+        json.dump(sorted(shared), f, indent=2)
+
+
+def share_post_to_bluesky(title, summary, slug, site_url):
+    """Share a single post to Bluesky with an external link embed."""
+    post_url = f"{site_url}/posts/{slug}.html"
+    try:
+        embed_external = bsky_models.AppBskyEmbedExternal.Main(
+            external=bsky_models.AppBskyEmbedExternal.External(
+                title=title,
+                description=summary,
+                uri=post_url,
+            )
+        )
+        bluesky_client.send_post(text=f"{title}\n\n{summary}", embed=embed_external)
+        print(f"  Shared to Bluesky: {title}")
+        return True
+    except Exception as e:
+        print(f"  Warning: Failed to share to Bluesky: {e}")
+        return False
+
+
+def share_new_posts_to_bluesky(posts, site_url):
+    """Share any new posts marked with 'bluesky: true' to Bluesky."""
+    if not bluesky_client:
+        return
+
+    shared = load_bluesky_shared_posts()
+    for post in posts.values():
+        meta = post["metadata"]
+        bluesky_flag = get_metadata_value(meta, "bluesky")
+        if bluesky_flag.lower() != "true":
+            continue
+
+        slug = get_metadata_value(meta, "slug")
+        if slug in shared:
+            continue
+
+        title = get_metadata_value(meta, "title")
+        summary = get_metadata_value(meta, "summary")
+        if share_post_to_bluesky(title, summary, slug, site_url):
+            shared.add(slug)
+
+    save_bluesky_shared_posts(shared)
+
+
 # Parse posts and generate summaries if missing
 POSTS = {}
 for post in os.listdir("posts"):
@@ -412,6 +494,9 @@ for post in POSTS:
 
 # Share new posts to LinkedIn (if configured)
 share_new_posts_to_linkedin(POSTS, SITE_URL)
+
+# Share new posts to Bluesky (if configured)
+share_new_posts_to_bluesky(POSTS, SITE_URL)
 
 # Generate static pages
 for page in PAGES:

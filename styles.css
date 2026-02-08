@@ -221,3 +221,17 @@ p code {
   background-color: #cc5200;
   color: #ffffff;
 }
+
+.share-bluesky {
+  background-color: #0085ff;
+  color: #ffffff;
+}
+
+.share-bluesky:visited {
+  color: #ffffff;
+}
+
+.share-bluesky:hover {
+  background-color: #0066cc;
+  color: #ffffff;
+}

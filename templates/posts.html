@@ -21,5 +21,12 @@
      aria-label="Share on Hacker News">
     Hacker News
   </a>
+  <a href="https://bsky.app/intent/compose?text={{ post.title }}%20{{ site_url }}/posts/{{ post.slug }}.html"
+     target="_blank"
+     rel="noopener noreferrer"
+     class="share-button share-bluesky"
+     aria-label="Share on Bluesky">
+    Bluesky
+  </a>
 </div>
 {% endblock %}

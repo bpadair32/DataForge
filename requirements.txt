@@ -9,3 +9,6 @@ feedgen==1.0.0
 
 # Optional: for auto-posting to LinkedIn
 # linkedin-api-python-client==0.3.0
+
+# Optional: for auto-posting to Bluesky
+# atproto==0.0.65
