@@ -20,16 +20,30 @@ pip install -r requirements.txt
 - Jinja2 - Template engine
 - Markdown - Python-Markdown for parsing
 - Pygments - Syntax highlighting for code blocks
+- feedgen - RSS feed generation
+
+**Optional Dependencies:**
+- ollama - Auto-generate post summaries (requires running Ollama server)
+- linkedin-api-python-client - Auto-post to LinkedIn
+- atproto - Auto-post to Bluesky
 
 ## Usage
 
 1. Put static pages in Markdown format in the `pages/` directory
 2. Put blog posts in Markdown format in the `posts/` directory
-3. Run the build:
+3. (Optional) Set environment variables for integrations (see below)
+4. Run the build:
    ```bash
    python3 main.py
    ```
-4. Upload the contents of the `dist/` directory to your web server
+5. Upload the contents of the `dist/` directory to your web server
+
+## Environment Variables
+
+**Optional - for site URL:**
+- `SITE_URL` - Base URL for your site (defaults to https://adair.tech)
+
+All other environment variables are documented in their respective integration sections below.
 
 ## Content Format
 
@@ -42,10 +56,14 @@ date: YYYY-MM-DD
 tags: tag1, tag2
 summary: Brief description of the content
 slug: url-slug
+linkedin: true    # Optional: auto-post to LinkedIn
+bluesky: true     # Optional: auto-post to Bluesky
 ---
 
 Your content here...
 ```
+
+**Note:** If `summary` is omitted and Ollama is configured, a summary will be auto-generated and added to the file.
 
 ## Features
 
@@ -81,11 +99,76 @@ Supports callout blocks compatible with Obsidian syntax:
 > Important warning
 ```
 
+### RSS Feed
+
+An RSS 2.0 feed is automatically generated at `dist/feed.xml` with all posts.
+
+### Social Media Integration
+
+#### Ollama Summary Generation (Optional)
+
+Auto-generate summaries for posts that don't have one. Requires a running Ollama server.
+
+**Setup:**
+```bash
+export OLLAMA_HOST=http://localhost:11434
+export OLLAMA_MODEL=llama3.2
+pip install ollama
+```
+
+When you build, any post missing a `summary` field will have one generated and added automatically.
+
+#### LinkedIn Auto-Posting (Optional)
+
+Automatically post new blog posts to LinkedIn during builds.
+
+**Setup:**
+1. Create a LinkedIn app at https://developer.linkedin.com
+2. Run the helper script to get an OAuth token:
+   ```bash
+   export CLIENT_ID=your_client_id
+   export CLIENT_SECRET=your_client_secret
+   python3 linkedin_auth.py
+   ```
+3. Set environment variables:
+   ```bash
+   export LINKEDIN_ACCESS_TOKEN=your_token
+   export LINKEDIN_PERSON_URN=urn:li:person:abc123
+   pip install linkedin-api-python-client
+   ```
+4. Add `linkedin: true` to post frontmatter to enable sharing
+
+Posts are tracked in `.linkedin_shared.json` to prevent duplicates. Tokens expire after 60 days.
+
+#### Bluesky Auto-Posting (Optional)
+
+Automatically post new blog posts to Bluesky during builds.
+
+**Setup:**
+1. Generate an app password at Bluesky Settings > App Passwords
+2. Set environment variables:
+   ```bash
+   export BLUESKY_HANDLE=user.bsky.social
+   export BLUESKY_APP_PASSWORD=your_app_password
+   pip install atproto
+   ```
+3. Add `bluesky: true` to post frontmatter to enable sharing
+
+Posts are tracked in `.bluesky_shared.json` to prevent duplicates.
+
+#### Share Buttons
+
+Posts automatically include share buttons for:
+- LinkedIn (client-side, no API key needed)
+- Bluesky (uses intent URL)
+- HackerNews (uses submission URL)
+
 ## Output Structure
 
 ```
 dist/
 ├── index.html              # Homepage with post listings
+├── feed.xml                # RSS 2.0 feed
 ├── {page-slug}.html        # Static pages
 ├── posts/
 │   └── {post-slug}.html    # Individual blog posts
@@ -96,15 +179,16 @@ dist/
 ## Project Structure
 
 ```
-├── main.py          # Entry point and build logic
+├── main.py             # Entry point and build logic (527 lines)
+├── linkedin_auth.py    # Helper script for LinkedIn OAuth
 ├── templates/
-│   ├── layout.html  # Base template
-│   ├── main.html    # Homepage template
-│   ├── posts.html   # Post template
-│   └── pages.html   # Page template
-├── styles.css       # Source stylesheet
-├── pages/           # Static page Markdown files
-└── posts/           # Blog post Markdown files
+│   ├── layout.html     # Base template
+│   ├── main.html       # Homepage template
+│   ├── posts.html      # Post template
+│   └── pages.html      # Page template
+├── styles.css          # Source stylesheet
+├── pages/              # Static page Markdown files
+└── posts/              # Blog post Markdown files
 ```
 
 ## Issues/Contributions
