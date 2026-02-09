@@ -194,6 +194,17 @@ p code {
   transition: background-color 0.2s;
 }
 
+.share-button:hover {
+  text-decoration: none;
+}
+
+.share-button svg {
+  width: 16px;
+  height: 16px;
+  vertical-align: -0.15em;
+  margin-right: 0.3em;
+}
+
 .share-linkedin {
   background-color: #0a66c2;
   color: #ffffff;
