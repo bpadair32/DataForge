@@ -39,6 +39,10 @@ BLUESKY_HANDLE = os.environ.get("BLUESKY_HANDLE")
 BLUESKY_APP_PASSWORD = os.environ.get("BLUESKY_APP_PASSWORD")
 BLUESKY_SHARE_FILE = os.environ.get("BLUESKY_SHARE_FILE", ".bluesky_shared.json")
 
+# Theme configuration
+DEFAULT_THEME = os.environ.get("DEFAULT_THEME", "default")
+DISABLE_THEME_SWITCHING = os.environ.get("DISABLE_THEME_SWITCHING", "").lower() in ("1", "true", "yes")
+
 ollama_client = None
 if OLLAMA_HOST and OLLAMA_MODEL:
     try:
@@ -461,6 +465,44 @@ def extract_metadata(items):
     return result
 
 
+def discover_themes(themes_dir="themes"):
+    themes = []
+    if not os.path.isdir(themes_dir):
+        return themes
+    for name in sorted(os.listdir(themes_dir)):
+        theme_path = os.path.join(themes_dir, name)
+        if not os.path.isdir(theme_path):
+            continue
+        if not os.path.isfile(os.path.join(theme_path, "styles.css")):
+            continue
+        theme = {"name": name, "label": name.capitalize(), "description": "", "pygments_style": "monokai"}
+        json_path = os.path.join(theme_path, "theme.json")
+        if os.path.isfile(json_path):
+            with open(json_path) as f:
+                try:
+                    meta = json.load(f)
+                    theme.update({k: meta[k] for k in ("label", "description", "pygments_style") if k in meta})
+                except json.JSONDecodeError:
+                    pass
+        themes.append(theme)
+    themes.sort(key=lambda t: (0 if t["name"] == "default" else 1, t["name"]))
+    return themes
+
+
+def build_themes(themes, out_dir="dist/styles/themes"):
+    os.makedirs(out_dir, exist_ok=True)
+    for theme in themes:
+        dst = os.path.join(out_dir, f"{theme['name']}.css")
+        shutil.copyfile(os.path.join("themes", theme["name"], "styles.css"), dst)
+        formatter = HtmlFormatter(style=theme["pygments_style"])
+        with open(dst, "a") as f:
+            f.write("\n/* Syntax highlighting (Pygments) */\n")
+            f.write(formatter.get_style_defs(".highlight"))
+    manifest = [{"name": t["name"], "label": t["label"], "description": t["description"]} for t in themes]
+    with open(os.path.join(out_dir, "manifest.json"), "w") as f:
+        json.dump(manifest, f, indent=2)
+
+
 def generate_rss_feed(posts, site_url):
     """Generate an RSS 2.0 feed from parsed posts."""
     fg = FeedGenerator()
@@ -493,8 +535,14 @@ posts_metadata = extract_metadata(POSTS)
 pages_metadata = extract_metadata(PAGES)
 tags = [post["tags"] for post in posts_metadata]
 
+THEMES = discover_themes()
+SHOW_THEME_SWITCHER = len(THEMES) >= 2 and not DISABLE_THEME_SWITCHING
+
 # Generate home page
-home_html = home_template.render(posts=posts_metadata, pages=pages_metadata, tags=tags, site_url=SITE_URL)
+home_html = home_template.render(
+    posts=posts_metadata, pages=pages_metadata, tags=tags, site_url=SITE_URL,
+    css_base="styles/", themes=THEMES, default_theme=DEFAULT_THEME, show_theme_switcher=SHOW_THEME_SWITCHER,
+)
 os.makedirs("dist", exist_ok=True)
 with open("dist/index.html", "w") as file:
     file.write(home_html)
@@ -512,7 +560,8 @@ for post in POSTS:
     }
 
     post_html = post_template.render(
-        post=post_data, pages=pages_metadata, ss_path="../styles/main.css", site_url=SITE_URL
+        post=post_data, pages=pages_metadata, site_url=SITE_URL,
+        css_base="../styles/", themes=THEMES, default_theme=DEFAULT_THEME, show_theme_switcher=SHOW_THEME_SWITCHER,
     )
 
     post_file_path = f"dist/posts/{get_metadata_value(meta, 'slug')}.html"
@@ -535,7 +584,10 @@ for page in PAGES:
         "slug": get_metadata_value(meta, "slug"),
     }
 
-    page_html = page_template.render(page=page_data, pages=pages_metadata, site_url=SITE_URL)
+    page_html = page_template.render(
+        page=page_data, pages=pages_metadata, site_url=SITE_URL,
+        css_base="styles/", themes=THEMES, default_theme=DEFAULT_THEME, show_theme_switcher=SHOW_THEME_SWITCHER,
+    )
 
     page_file_path = f"dist/{get_metadata_value(meta, 'slug')}.html"
     os.makedirs(os.path.dirname(page_file_path), exist_ok=True)
@@ -545,16 +597,9 @@ for page in PAGES:
 # Generate RSS feed
 generate_rss_feed(POSTS, SITE_URL)
 
-# Copy styles and generate Pygments CSS
-os.makedirs("dist/styles", exist_ok=True)
-shutil.copyfile("styles.css", "dist/styles/main.css")
+# Build themes
+build_themes(THEMES)
 
 # Copy favicon if present
 if os.path.exists("favicon.svg"):
     shutil.copyfile("favicon.svg", "dist/favicon.svg")
-
-# Append Pygments syntax highlighting CSS
-formatter = HtmlFormatter(style="monokai")
-with open("dist/styles/main.css", "a") as file:
-    file.write("\n/* Syntax highlighting (Pygments) */\n")
-    file.write(formatter.get_style_defs(".highlight"))
