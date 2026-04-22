@@ -14,9 +14,14 @@ from pygments.formatters import HtmlFormatter
 # Set these environment variables to enable:
 #   OLLAMA_HOST - Ollama server URL (e.g., http://localhost:11434)
 #   OLLAMA_MODEL - Model to use (e.g., llama3.2, mistral)
+#
+# Optional Claude API fallback for auto-generating summaries (used when Ollama is not configured)
+# Set this environment variable to enable:
+#   ANTHROPIC_API_KEY - Anthropic API key
 SITE_URL = os.environ.get("SITE_URL", "https://adair.tech")
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL")
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 
 # Optional LinkedIn integration for auto-posting new blog posts
 # Set these environment variables to enable:
@@ -43,14 +48,23 @@ if OLLAMA_HOST and OLLAMA_MODEL:
         print("Warning: ollama package not installed. Auto-summary generation disabled.")
         print("Install with: pip install ollama")
 
+anthropic_client = None
+if not ollama_client and ANTHROPIC_API_KEY:
+    try:
+        import anthropic as _anthropic
+        anthropic_client = _anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    except ImportError:
+        print("Warning: anthropic package not installed. Claude API fallback for summaries disabled.")
+        print("Install with: pip install anthropic")
+
 linkedin_client = None
 if LINKEDIN_ACCESS_TOKEN and LINKEDIN_PERSON_URN:
     try:
         from linkedin_api.clients.restli.client import RestliClient
         linkedin_client = RestliClient()
     except ImportError:
-        print("Warning: linkedin-api-python-client not installed. Auto-posting disabled.")
-        print("Install with: pip install linkedin-api-python-client")
+        print("Warning: linkedin-api-client not installed. Auto-posting disabled.")
+        print("Install with: pip install linkedin-api-client")
 
 bluesky_client = None
 bsky_models = None
@@ -173,10 +187,7 @@ def get_metadata_value(meta, key):
 
 
 def generate_summary(content, title):
-    """Generate a 50-60 word summary for a post using Ollama."""
-    if not ollama_client:
-        return None
-
+    """Generate a 50-60 word summary for a post using Ollama or Claude API."""
     prompt = f"""Write a summary for the following blog post titled "{title}".
 The summary must be exactly 50-60 words. Do not include any preamble or explanation,
 just output the summary text directly. The summary should be engaging and give readers
@@ -187,11 +198,22 @@ Post content:
 
 Summary:"""
 
-    response = ollama_client.chat(
-        model=OLLAMA_MODEL,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return response["message"]["content"].strip()
+    if ollama_client:
+        response = ollama_client.chat(
+            model=OLLAMA_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response["message"]["content"].strip()
+
+    if anthropic_client:
+        response = anthropic_client.messages.create(
+            model="claude-haiku-4-5",
+            max_tokens=256,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response.content[0].text.strip()
+
+    return None
 
 
 def update_post_with_summary(file_path, summary):
@@ -207,12 +229,16 @@ def update_post_with_summary(file_path, summary):
     frontmatter = frontmatter_match.group(1)
     rest_of_content = content[frontmatter_match.end():]
 
-    # Check if summary already exists in frontmatter
-    if re.search(r"^summary:", frontmatter, re.MULTILINE):
+    # If summary field exists with a non-empty value, leave it alone
+    if re.search(r"^summary:[ \t]+\S", frontmatter, re.MULTILINE):
         return
 
-    # Add summary before slug line, or at the end of frontmatter
-    if re.search(r"^slug:", frontmatter, re.MULTILINE):
+    # Replace empty summary line if present, otherwise insert before slug or append
+    if re.search(r"^summary:[ \t]*$", frontmatter, re.MULTILINE):
+        new_frontmatter = re.sub(
+            r"^summary:[ \t]*$", f"summary: {summary}", frontmatter, flags=re.MULTILINE
+        )
+    elif re.search(r"^slug:", frontmatter, re.MULTILINE):
         new_frontmatter = re.sub(
             r"^(slug:)", f"summary: {summary}\n\\1", frontmatter, flags=re.MULTILINE
         )
@@ -377,9 +403,9 @@ for post in os.listdir("posts"):
     with open(file_path, "r") as file:
         html, meta = parse_markdown(file.read())
 
-    # Check if summary is missing and generate one if Ollama is configured
+    # Check if summary is missing and generate one if Ollama or Claude API is configured
     summary = get_metadata_value(meta, "summary")
-    if not summary and ollama_client:
+    if not summary and (ollama_client or anthropic_client):
         title = get_metadata_value(meta, "title")
         post_content = extract_post_content(file_path)
         print(f"Generating summary for: {title}")
@@ -481,6 +507,8 @@ for post in POSTS:
         "title": get_metadata_value(meta, "title"),
         "date": get_metadata_value(meta, "date"),
         "slug": get_metadata_value(meta, "slug"),
+        "summary": get_metadata_value(meta, "summary"),
+        "tags": get_metadata_value(meta, "tags"),
     }
 
     post_html = post_template.render(
@@ -504,6 +532,7 @@ for page in PAGES:
     page_data = {
         "content": PAGES[page]["html"],
         "title": get_metadata_value(meta, "title"),
+        "slug": get_metadata_value(meta, "slug"),
     }
 
     page_html = page_template.render(page=page_data, pages=pages_metadata, site_url=SITE_URL)
@@ -519,6 +548,10 @@ generate_rss_feed(POSTS, SITE_URL)
 # Copy styles and generate Pygments CSS
 os.makedirs("dist/styles", exist_ok=True)
 shutil.copyfile("styles.css", "dist/styles/main.css")
+
+# Copy favicon if present
+if os.path.exists("favicon.svg"):
+    shutil.copyfile("favicon.svg", "dist/favicon.svg")
 
 # Append Pygments syntax highlighting CSS
 formatter = HtmlFormatter(style="monokai")
