@@ -2,5 +2,3 @@ CLAUDE.md
 __pycache__/*
 dataforge/*
 dist/*
-.linkedin_shared.json
-.bluesky_shared.json

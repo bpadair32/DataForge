@@ -24,8 +24,6 @@ pip install -r requirements.txt
 
 **Optional Dependencies:**
 - ollama - Auto-generate post summaries (requires running Ollama server)
-- linkedin-api-python-client - Auto-post to LinkedIn
-- atproto - Auto-post to Bluesky
 
 ## Usage
 
@@ -56,8 +54,6 @@ date: YYYY-MM-DD
 tags: tag1, tag2
 summary: Brief description of the content
 slug: url-slug
-linkedin: true    # Optional: auto-post to LinkedIn
-bluesky: true     # Optional: auto-post to Bluesky
 ---
 
 Your content here...
@@ -118,44 +114,6 @@ pip install ollama
 
 When you build, any post missing a `summary` field will have one generated and added automatically.
 
-#### LinkedIn Auto-Posting (Optional)
-
-Automatically post new blog posts to LinkedIn during builds.
-
-**Setup:**
-1. Create a LinkedIn app at https://developer.linkedin.com
-2. Run the helper script to get an OAuth token:
-   ```bash
-   export CLIENT_ID=your_client_id
-   export CLIENT_SECRET=your_client_secret
-   python3 linkedin_auth.py
-   ```
-3. Set environment variables:
-   ```bash
-   export LINKEDIN_ACCESS_TOKEN=your_token
-   export LINKEDIN_PERSON_URN=urn:li:person:abc123
-   pip install linkedin-api-python-client
-   ```
-4. Add `linkedin: true` to post frontmatter to enable sharing
-
-Posts are tracked in `.linkedin_shared.json` to prevent duplicates. Tokens expire after 60 days.
-
-#### Bluesky Auto-Posting (Optional)
-
-Automatically post new blog posts to Bluesky during builds.
-
-**Setup:**
-1. Generate an app password at Bluesky Settings > App Passwords
-2. Set environment variables:
-   ```bash
-   export BLUESKY_HANDLE=user.bsky.social
-   export BLUESKY_APP_PASSWORD=your_app_password
-   pip install atproto
-   ```
-3. Add `bluesky: true` to post frontmatter to enable sharing
-
-Posts are tracked in `.bluesky_shared.json` to prevent duplicates.
-
 #### Share Buttons
 
 Posts automatically include share buttons for:
@@ -179,8 +137,7 @@ dist/
 ## Project Structure
 
 ```
-├── main.py             # Entry point and build logic (527 lines)
-├── linkedin_auth.py    # Helper script for LinkedIn OAuth
+├── main.py             # Entry point and build logic
 ├── templates/
 │   ├── layout.html     # Base template
 │   ├── main.html       # Homepage template
