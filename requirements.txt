@@ -1,5 +1,5 @@
 Jinja2==3.1.6
-Markdown==3.10.2
+Markdown==3.11
 MarkupSafe==3.0.3
 Pygments==2.20.0
 feedgen==1.0.0
